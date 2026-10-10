@@ -4,6 +4,7 @@ backend/storage
 node_modules
 dist
 .vite
+.tmp-check.mjs
 
 # Secrets and local settings
 backend/.env

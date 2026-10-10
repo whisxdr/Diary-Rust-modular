@@ -1,5 +1,5 @@
 {
-  "name": "dear-my-diary-frontend",
+  "name": "dear-my-diary",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
+    "check:local": "esbuild scripts/check-local-backend.ts --bundle --platform=node --format=esm --outfile=.tmp-check.mjs --log-level=error && node .tmp-check.mjs",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -20,6 +21,8 @@
     "@types/react": "^18.3.11",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.2",
+    "esbuild": "^0.28.2",
+    "fake-indexeddb": "^6.2.5",
     "typescript": "^5.6.3",
     "vite": "^5.4.9"
   }

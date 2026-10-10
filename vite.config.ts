@@ -12,12 +12,7 @@ export default defineConfig({
   },
   server: {
     port: 5173,
-    // The API runs on its own port; cookies are sent with credentials.
-    proxy: {
-      '/api': {
-        target: 'http://127.0.0.1:8080',
-        changeOrigin: true,
-      },
-    },
+    // With no VITE_API_BASE_URL the app keeps everything in the browser, so no
+    // proxy is needed. Point that variable at a running API to use one.
   },
 });

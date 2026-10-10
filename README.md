@@ -1,10 +1,32 @@
 # Dear My Diary
 
-A local-first diary: a Rust backend, a React frontend, and PostgreSQL for storage.
+A local-first diary. The web app runs entirely in your browser — account,
+entries, tags and backups stay on your device — and the optional Rust API in
+`backend/` serves the same features when you want them stored server-side.
 
 The application is a **modular monolith**. Business features own their routes,
 handlers, services, repositories and API shapes; nothing reaches into another
 feature's tables.
+
+## Two modes, one interface
+
+Every feature talks to `src/lib/api-client.ts` and nothing else. What sits
+behind it depends on one environment variable:
+
+| `VITE_API_BASE_URL` | Where the data lives |
+| --- | --- |
+| empty (default) | The browser. Accounts, entries, tags, moods and backups are stored in IndexedDB on this device. No server, no network. |
+| set, e.g. `https://api.example.com` | That API, over HTTP with cookie sessions. |
+
+Because the mode is chosen in one place, the feature code, screens and types
+are identical either way. The browser mode answers the same URLs the API
+answers, so nothing above `api-client` knows the difference.
+
+Passwords in browser mode are hashed with PBKDF2-SHA256 in Web Crypto before
+they are stored; the server uses Argon2id. Neither ever keeps a plain password.
+
+Data in browser mode is tied to that one browser profile. Clearing site data
+erases the diary, so use **Backup → Export** if it matters.
 
 ## Layout
 
@@ -37,7 +59,16 @@ the repository into Vercel finds one application instead of two competing ones.
 
 ## Running it
 
-Prerequisites: Rust 1.82+, Node 20+, PostgreSQL 14+.
+Only Node 20+ is needed for the default mode.
+
+```bash
+npm install
+npm run dev
+```
+
+Open http://localhost:5173 and create an account. Nothing leaves the device.
+
+Prerequisites for the API mode: Rust 1.82+, Node 20+, PostgreSQL 14+.
 
 **1. Database.** Create the database, then copy the environment file and point
 `DATABASE_URL` at it.
@@ -60,15 +91,11 @@ cargo run --bin migrate
 cargo run
 ```
 
-**4. Frontend.** Vite proxies `/api` to the backend, so cookies just work. Run
-it from the repository root.
+**4. Point the app at it** by creating `.env` next to `package.json`:
 
 ```bash
-npm install
-npm run dev
+VITE_API_BASE_URL=http://127.0.0.1:8080
 ```
-
-Open http://localhost:5173 and create an account.
 
 ## Deploying to Vercel
 
@@ -78,13 +105,10 @@ output `dist`, and rewrites unknown paths to `index.html` so deep links like
 `/settings` survive a refresh.
 
 1. In Vercel, **Add New → Project**, import this repository, deploy.
-2. Point the app at your API:
 
-   ```bash
-   VITE_API_BASE_URL=https://api.example.com
-   ```
-
-   Leave it empty when the API serves the built frontend from the same origin.
+That is the whole setup for browser mode: with no environment variables the
+deployed site works as a complete diary on its own. Add `VITE_API_BASE_URL` only
+if you also deploy the API and want the data server-side.
 
 The API is a Rust server that needs PostgreSQL and a persistent volume for
 attachment bytes, so it runs on a normal host (a VPS, Fly.io, Railway), not on
@@ -106,15 +130,15 @@ the Rust `target` directory.
 ## Checks
 
 ```bash
+# Web
+npm run check:local   # browser-local backend, against an in-memory IndexedDB
+npm run build         # tsc --noEmit && vite build
+
 # API
 cd backend
 cargo fmt
 cargo clippy --all-targets
 cargo test
-
-# Web
-cd ..
-npm run build      # tsc --noEmit && vite build
 ```
 
 ## How the pieces fit
