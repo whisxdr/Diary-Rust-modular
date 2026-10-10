@@ -1,8 +1,9 @@
 # Build output
 backend/target
 backend/storage
-frontend/node_modules
-frontend/dist
+node_modules
+dist
+.vite
 
 # Secrets and local settings
 backend/.env

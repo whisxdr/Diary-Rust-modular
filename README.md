@@ -9,28 +9,31 @@ feature's tables.
 ## Layout
 
 ```text
-backend/
-  migrations/          versioned schema, applied by the migrate binary
-  src/
-    main.rs            bootstrapping only
-    app.rs             router composition
-    config.rs          environment configuration
-    state.rs           shared runtime dependencies
-    shared/            errors, pagination, dates, validation, portable format
-    infrastructure/    database, sessions, file storage, telemetry
-    middleware/        authentication, csrf, rate limit
-    features/          auth, accounts, entries, tags, moods, calendar,
-                       attachments, imports, exports, search, insights, settings
-  tests/               feature-grouped tests
+src/                    the React app (deployable to Vercel as-is)
+  app/                  router, providers, route guards
+  components/           ui, layout, feedback
+  features/             same feature split as the backend
+  hooks/, lib/          shared hooks and the API client
+  styles/               tokens, themes, component styles
+index.html, vite.config.ts, package.json
 
-frontend/
+backend/
+  migrations/           versioned schema, applied by the migrate binary
   src/
-    app/               router, providers, route guards
-    components/        ui, layout, feedback
-    features/          same feature split as the backend
-    hooks/, lib/       shared hooks and the API client
-    styles/            tokens, themes, component styles
+    main.rs             bootstrapping only
+    app.rs              router composition
+    config.rs           environment configuration
+    state.rs            shared runtime dependencies
+    shared/             errors, pagination, dates, validation, portable format
+    infrastructure/     database, sessions, file storage, telemetry
+    middleware/         authentication, csrf, rate limit
+    features/           auth, accounts, entries, tags, moods, calendar,
+                        attachments, imports, exports, search, insights, settings
+  tests/                feature-grouped tests
 ```
+
+The web app sits at the repository root and the API in `backend/`, so importing
+the repository into Vercel finds one application instead of two competing ones.
 
 ## Running it
 
@@ -57,10 +60,10 @@ cargo run --bin migrate
 cargo run
 ```
 
-**4. Frontend.** Vite proxies `/api` to the backend, so cookies just work.
+**4. Frontend.** Vite proxies `/api` to the backend, so cookies just work. Run
+it from the repository root.
 
 ```bash
-cd ../frontend
 npm install
 npm run dev
 ```
@@ -69,58 +72,48 @@ Open http://localhost:5173 and create an account.
 
 ## Deploying to Vercel
 
-The repository is configured as a Vercel project with two services, in
-`vercel.json`:
+The repository root *is* the web app, so importing it into Vercel finds a single
+application. `vercel.json` pins framework `vite`, build command `npm run build`,
+output `dist`, and rewrites unknown paths to `index.html` so deep links like
+`/settings` survive a refresh.
 
-- `backend` — the Rust API, runtime `rust`, served from `api/handler.rs`
-- `frontend` — the Vite app
+1. In Vercel, **Add New → Project**, import this repository, deploy.
+2. Point the app at your API:
 
-Public routing lives only at the top level: `/api/(.*)` goes to `backend`,
-everything else to `frontend`. Vercel forwards the original path, so the API
-receives `/api/...` and serves it unchanged — the frontend needs no
-`VITE_API_BASE_URL` in this setup, since it calls the same domain.
+   ```bash
+   VITE_API_BASE_URL=https://api.example.com
+   ```
 
-There are **no service bindings**. Bindings inject a service's internal URL into
-another service's *server-side* code; here the frontend is a static browser app
-and the browser calls the public `/api` path directly, so a binding would have
-nothing to bind.
+   Leave it empty when the API serves the built frontend from the same origin.
 
-`api/handler.rs` reuses the same router as `main.rs`; only the process entry
-differs. `main.rs` binds a TCP listener for a normal host, `api/handler.rs` goes
-through Vercel's function bridge.
-
-**Environment variables for the backend service:**
+The API is a Rust server that needs PostgreSQL and a persistent volume for
+attachment bytes, so it runs on a normal host (a VPS, Fly.io, Railway), not on
+Vercel's serverless runtime. When the two sit on different sites, cookies have to
+cross origins, so configure the API:
 
 ```bash
-DATABASE_URL=postgres://...            # Vercel Postgres or any provider
-STORAGE_ROOT=/tmp                     # the only writable path in a function
-COOKIE_SAME_SITE=Lax                  # same domain, so Lax is correct
 ALLOWED_ORIGINS=https://your-app.vercel.app
+COOKIE_SAME_SITE=None
+COOKIE_SECURE=auto     # auto means: Secure exactly when SameSite=None
 ```
 
-**Known limits of this deployment.** Vercel functions have a read-only
-filesystem with scratch space in `/tmp` (500 MB, ephemeral), so uploaded
-attachment bytes do not survive an instance recycle. Request bodies are capped
-well below what `MAX_ARCHIVE_BYTES` (64 MB) allows, so lower that setting for
-imports if the deployment rejects large files. Migrations still have to be
-applied out of band with `cargo run --bin migrate`; a function never changes the
-schema on startup. The Rust runtime is in public beta.
+`SameSite=None` is only accepted by browsers over HTTPS, so the API must be
+served over TLS in that setup.
 
-For a diary that keeps attachments durably, deploying the backend to a host with
-a persistent volume and the frontend to Vercel remains the better shape — see
-the two-origin cookie settings in `backend/.env.example`.
-
-`vercel dev` runs both services together locally.
+`.vercelignore` keeps build output out of the upload, so importing does not ship
+the Rust `target` directory.
 
 ## Checks
 
 ```bash
+# API
 cd backend
 cargo fmt
 cargo clippy --all-targets
 cargo test
 
-cd ../frontend
+# Web
+cd ..
 npm run build      # tsc --noEmit && vite build
 ```
 

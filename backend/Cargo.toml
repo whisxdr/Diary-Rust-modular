@@ -33,15 +33,6 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 dotenvy = "0.15"
 
-# Vercel Function adapter. Only used by the `handler` binary, which serves the
-# same router through Vercel instead of a TCP listener.
-vercel_runtime = { version = "2", features = ["axum"] }
-
-# Vercel looks for function binaries in api/, so this one is declared by hand.
-[[bin]]
-name = "handler"
-path = "api/handler.rs"
-
 # Tests are grouped by feature, mirroring the module layout.
 [[test]]
 name = "shared_rules"
