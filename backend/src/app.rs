@@ -5,7 +5,7 @@ use axum::{
     Router,
 };
 use tower_http::{
-    cors::{AllowOrigin, Any, CorsLayer},
+    cors::{Any, CorsLayer},
     trace::TraceLayer,
 };
 
@@ -64,12 +64,16 @@ fn cors_layer(state: &AppState) -> CorsLayer {
     let base = if state.config.cors_allow_any_origin {
         CorsLayer::new().allow_origin(Any)
     } else {
-        // Same-origin by default: the dev frontend runs on its own port.
-        let origin: AllowOrigin = [HeaderValue::from_static("http://localhost:5173")]
-            .into_iter()
-            .collect::<Vec<_>>()
-            .into();
-        CorsLayer::new().allow_origin(origin)
+        // Only the configured frontends may call the API. Credentials are sent,
+        // so a wildcard origin would be rejected by the browser anyway.
+        let origins: Vec<HeaderValue> = state
+            .config
+            .allowed_origins
+            .iter()
+            .filter_map(|origin| HeaderValue::from_str(origin).ok())
+            .collect();
+
+        CorsLayer::new().allow_origin(origins)
     };
 
     base.allow_methods([

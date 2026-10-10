@@ -2,9 +2,13 @@
  * Single place that knows how to talk to the backend.
  *
  * Feature modules call `request`; none of them touch fetch, headers or cookies.
+ *
+ * `VITE_API_BASE_URL` points at the API when the frontend is hosted somewhere
+ * other than the API itself. Left empty, requests go to `/api` on the same
+ * origin, which is what the dev proxy and a reverse-proxied deployment use.
  */
 
-const API_BASE = '/api';
+const API_BASE = (import.meta.env['VITE_API_BASE_URL'] as string | undefined)?.replace(/\/$/, '') ?? '/api';
 const CSRF_COOKIE = 'dmd_csrf';
 const CSRF_HEADER = 'X-CSRF-Token';
 

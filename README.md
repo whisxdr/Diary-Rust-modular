@@ -67,6 +67,38 @@ npm run dev
 
 Open http://localhost:5173 and create an account.
 
+## Deploying the frontend to Vercel
+
+The frontend is a plain Vite app, so it imports into Vercel as-is.
+
+1. In Vercel, **Add New → Project**, import this repository, and set
+   **Root Directory** to `frontend`.
+2. Vercel reads `frontend/vercel.json`: framework `vite`, build command
+   `npm run build`, output `dist`, with a rewrite to `index.html` so deep links
+   like `/settings` work on refresh.
+3. Set one environment variable:
+
+   ```bash
+   VITE_API_BASE_URL=https://your-api-host.example.com
+   ```
+
+   Leave it empty when the API serves the built frontend from the same origin.
+
+The API itself is a Rust server that needs PostgreSQL and a persistent volume for
+attachment bytes, so it belongs on a normal host (a VPS, Fly.io, Railway), not on
+Vercel's serverless runtime. When the two run on different sites, cookies have to
+cross origins. Configure the API for that:
+
+```bash
+ALLOWED_ORIGINS=https://your-app.vercel.app
+COOKIE_SAME_SITE=None
+COOKIE_SECURE=auto     # auto means: Secure exactly when SameSite=None
+```
+
+`SameSite=None` is only accepted by browsers over HTTPS, so the API must be
+served over TLS in this setup. Add your custom domain to `ALLOWED_ORIGINS` when
+you have one.
+
 ## Checks
 
 ```bash
@@ -82,8 +114,8 @@ npm run build      # tsc --noEmit && vite build
 ## How the pieces fit
 
 - **Authentication** issues an opaque session token; only its SHA-256 hash is
-  stored, and the cookie is `HttpOnly` + `SameSite=Lax`. Mutating requests must
-  echo the `dmd_csrf` cookie in an `X-CSRF-Token` header.
+  stored, and the cookie is `HttpOnly`. Mutating requests must echo the
+  `dmd_csrf` cookie in an `X-CSRF-Token` header.
 - **Entries** allow one per account per day. Word counts are computed on write so
   reflection statistics never rescan the body text.
 - **Imports** parse and validate the archive first, show what would change, and

@@ -19,6 +19,35 @@ pub fn generate_csrf_token() -> String {
     generate_token()
 }
 
+/// Cookie attributes come from configuration so the same code serves a
+/// same-origin install and a frontend hosted on another site.
+#[derive(Debug, Clone, Copy)]
+pub struct CookieOptions<'name, 'config> {
+    pub name: &'name str,
+    pub same_site: &'config str,
+    pub secure: bool,
+}
+
+impl<'name, 'config> CookieOptions<'name, 'config> {
+    pub fn new(name: &'name str, config: &'config crate::config::Config) -> Self {
+        Self {
+            name,
+            same_site: &config.cookie_same_site,
+            secure: config.cookie_secure,
+        }
+    }
+
+    fn attributes(self, value: &str, max_age_secs: i64, http_only: bool) -> String {
+        let secure = if self.secure { "; Secure" } else { "" };
+        let http_only = if http_only { "; HttpOnly" } else { "" };
+        format!(
+            "{name}={value}; Path=/; Max-Age={max_age_secs}; SameSite={same_site}{secure}{http_only}",
+            name = self.name,
+            same_site = self.same_site,
+        )
+    }
+}
+
 /// Reads one cookie from a `Cookie` header value.
 pub fn read_cookie(header: Option<&str>, name: &str) -> Option<String> {
     let header = header?;
@@ -28,17 +57,17 @@ pub fn read_cookie(header: Option<&str>, name: &str) -> Option<String> {
     })
 }
 
-pub fn build_cookie(name: &str, value: &str, max_age_secs: i64) -> String {
-    format!("{name}={value}; Path=/; Max-Age={max_age_secs}; HttpOnly; SameSite=Lax")
+pub fn build_cookie(options: CookieOptions<'_, '_>, value: &str, max_age_secs: i64) -> String {
+    options.attributes(value, max_age_secs, true)
 }
 
 /// Readable by JavaScript on purpose: the frontend copies it into a request header.
-pub fn build_csrf_cookie(name: &str, value: &str, max_age_secs: i64) -> String {
-    format!("{name}={value}; Path=/; Max-Age={max_age_secs}; SameSite=Lax")
+pub fn build_csrf_cookie(options: CookieOptions<'_, '_>, value: &str, max_age_secs: i64) -> String {
+    options.attributes(value, max_age_secs, false)
 }
 
-pub fn clear_cookie(name: &str) -> String {
-    format!("{name}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax")
+pub fn clear_cookie(options: CookieOptions<'_, '_>) -> String {
+    options.attributes("", 0, true)
 }
 
 /// Expiry reported to the client for a freshly opened or current session.
@@ -49,6 +78,12 @@ pub fn current_expiry(config: &crate::config::Config) -> chrono::DateTime<chrono
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    const LAX: CookieOptions<'static, 'static> = CookieOptions {
+        name: "dmd_session",
+        same_site: "Lax",
+        secure: false,
+    };
 
     #[test]
     fn cookie_lookup_ignores_unrelated_names() {
@@ -64,5 +99,35 @@ mod tests {
         assert_ne!(a, b);
         assert_eq!(hash_token(&a), hash_token(&a));
         assert_ne!(hash_token(&a), hash_token(&b));
+    }
+
+    #[test]
+    fn session_cookie_is_httponly_and_csrf_cookie_is_not() {
+        let session = build_cookie(LAX, "abc", 60);
+        assert!(session.starts_with("dmd_session=abc;"));
+        assert!(session.contains("HttpOnly"));
+        assert!(session.contains("SameSite=Lax"));
+        assert!(!session.contains("Secure"));
+
+        let csrf = build_csrf_cookie(LAX, "abc", 60);
+        assert!(csrf.contains("dmd_session=abc;"));
+        assert!(!csrf.contains("HttpOnly"));
+    }
+
+    #[test]
+    fn cross_site_cookies_require_https() {
+        let cross_site = CookieOptions {
+            name: "dmd_session",
+            same_site: "None",
+            secure: true,
+        };
+        let cookie = build_cookie(cross_site, "abc", 60);
+        assert!(cookie.contains("SameSite=None"));
+        assert!(cookie.contains("Secure"));
+    }
+
+    #[test]
+    fn clearing_a_cookie_expires_it() {
+        assert!(clear_cookie(LAX).contains("Max-Age=0"));
     }
 }

@@ -16,7 +16,11 @@ use crate::{
 pub async fn issue_csrf(State(state): State<AppState>) -> Response {
     let token = session::generate_csrf_token();
     let max_age = state.config.session_ttl_hours * 3600;
-    let cookie = session::build_csrf_cookie(&state.config.csrf_cookie_name, &token, max_age);
+    let cookie = session::build_csrf_cookie(
+        session::CookieOptions::new(&state.config.csrf_cookie_name, &state.config),
+        &token,
+        max_age,
+    );
 
     ([(header::SET_COOKIE, cookie)], Json(CsrfResponse { token })).into_response()
 }
@@ -45,7 +49,10 @@ pub async fn logout(
 ) -> AppResult<Response> {
     service::logout(&state, user).await?;
 
-    let cleared = session::clear_cookie(&state.config.session_cookie_name);
+    let cleared = session::clear_cookie(session::CookieOptions::new(
+        &state.config.session_cookie_name,
+        &state.config,
+    ));
     Ok((
         [(header::SET_COOKIE, cleared)],
         Json(MessageResponse::new("Signed out.")),
@@ -76,7 +83,11 @@ pub async fn current_session(
 
 fn with_session_cookie(state: &AppState, issued: IssuedSession) -> Response {
     let max_age = state.config.session_ttl_hours * 3600;
-    let cookie = session::build_cookie(&state.config.session_cookie_name, &issued.token, max_age);
+    let cookie = session::build_cookie(
+        session::CookieOptions::new(&state.config.session_cookie_name, &state.config),
+        &issued.token,
+        max_age,
+    );
     let body = SessionResponse {
         user: UserProfile::from(&issued.user),
         expires_at: issued.expires_at,

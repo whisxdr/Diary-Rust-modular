@@ -42,13 +42,33 @@ fn cookie_lookup_ignores_unrelated_names() {
 
 #[test]
 fn cookies_are_marked_httponly_and_same_site() {
-    let cookie = session::build_cookie("dmd_session", "value", 60);
+    let options = session::CookieOptions {
+        name: "dmd_session",
+        same_site: "Lax",
+        secure: false,
+    };
+
+    let cookie = session::build_cookie(options, "value", 60);
     assert!(cookie.contains("HttpOnly"));
     assert!(cookie.contains("SameSite=Lax"));
     assert!(cookie.contains("Max-Age=60"));
 
     // The CSRF cookie has to stay readable by the frontend.
-    assert!(!session::build_csrf_cookie("dmd_csrf", "value", 60).contains("HttpOnly"));
+    assert!(!session::build_csrf_cookie(options, "value", 60).contains("HttpOnly"));
+}
+
+#[test]
+fn cross_site_cookies_are_secure_only() {
+    // A frontend hosted elsewhere needs SameSite=None, which browsers only
+    // accept over HTTPS.
+    let options = session::CookieOptions {
+        name: "dmd_session",
+        same_site: "None",
+        secure: true,
+    };
+    let cookie = session::build_cookie(options, "value", 60);
+    assert!(cookie.contains("SameSite=None"));
+    assert!(cookie.contains("Secure"));
 }
 
 #[test]

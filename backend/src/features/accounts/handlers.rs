@@ -47,7 +47,12 @@ pub async fn delete_account(
 ) -> AppResult<Response> {
     let summary = service::delete_account(&state, caller, &request.confirm_display_name).await?;
 
-    let cleared = crate::infrastructure::session::clear_cookie(&state.config.session_cookie_name);
+    let cleared = crate::infrastructure::session::clear_cookie(
+        crate::infrastructure::session::CookieOptions::new(
+            &state.config.session_cookie_name,
+            &state.config,
+        ),
+    );
     Ok((
         [(axum::http::header::SET_COOKIE, cleared)],
         Json(DeletionResponse {
