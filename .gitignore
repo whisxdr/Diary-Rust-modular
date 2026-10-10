@@ -1,0 +1,21 @@
+# Build output
+backend/target
+backend/storage
+frontend/node_modules
+frontend/dist
+
+# Secrets and local settings
+backend/.env
+.env
+.env.local
+
+# Editor and OS noise
+.DS_Store
+Thumbs.db
+*.swp
+.idea
+.vscode/*
+
+# Local agent tooling state
+.mimosa
+.v2c

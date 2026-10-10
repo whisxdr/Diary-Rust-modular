@@ -1,0 +1,17 @@
+/* Theme switching is done with a data attribute on <html>. */
+html[data-theme='dark'] body {
+  background: var(--color-background);
+  color: var(--color-text);
+}
+
+html[data-theme='light'] body {
+  background: var(--color-background);
+  color: var(--color-text);
+}
+
+@media (prefers-color-scheme: dark) {
+  html[data-theme='system'] body {
+    background: #1c1a17;
+    color: #ece5d9;
+  }
+}
