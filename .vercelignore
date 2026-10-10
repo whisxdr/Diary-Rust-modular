@@ -1,0 +1,9 @@
+# Vercel uploads the whole repository. Build output is large and useless there,
+# so keep it out of the upload; git still tracks it normally.
+backend/target
+backend/storage
+frontend/node_modules
+frontend/dist
+.mimosa
+.v2c
+*.log

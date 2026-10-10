@@ -69,20 +69,23 @@ Open http://localhost:5173 and create an account.
 
 ## Deploying the frontend to Vercel
 
-The frontend is a plain Vite app, so it imports into Vercel as-is.
+Importing the repository works with no project settings to change. The
+`vercel.json` at the repository root points Vercel at `frontend/`: install
+`npm install`, build `npm run build`, serve `frontend/dist`, and rewrite unknown
+paths to `index.html` so deep links like `/settings` survive a refresh.
 
-1. In Vercel, **Add New → Project**, import this repository, and set
-   **Root Directory** to `frontend`.
-2. Vercel reads `frontend/vercel.json`: framework `vite`, build command
-   `npm run build`, output `dist`, with a rewrite to `index.html` so deep links
-   like `/settings` work on refresh.
-3. Set one environment variable:
+1. In Vercel, **Add New → Project** and import this repository. Leave the root
+   directory as the repository root and the framework as it is detected.
+2. Set one environment variable:
 
    ```bash
    VITE_API_BASE_URL=https://your-api-host.example.com
    ```
 
    Leave it empty when the API serves the built frontend from the same origin.
+
+`.vercelignore` keeps build output out of the upload, so importing does not ship
+the Rust `target` directory.
 
 The API itself is a Rust server that needs PostgreSQL and a persistent volume for
 attachment bytes, so it belongs on a normal host (a VPS, Fly.io, Railway), not on
