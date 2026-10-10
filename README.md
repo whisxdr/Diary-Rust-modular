@@ -67,40 +67,50 @@ npm run dev
 
 Open http://localhost:5173 and create an account.
 
-## Deploying the frontend to Vercel
+## Deploying to Vercel
 
-Importing the repository works with no project settings to change. The
-`vercel.json` at the repository root points Vercel at `frontend/`: install
-`npm install`, build `npm run build`, serve `frontend/dist`, and rewrite unknown
-paths to `index.html` so deep links like `/settings` survive a refresh.
+The repository is configured as a Vercel project with two services, in
+`vercel.json`:
 
-1. In Vercel, **Add New → Project** and import this repository. Leave the root
-   directory as the repository root and the framework as it is detected.
-2. Set one environment variable:
+- `backend` — the Rust API, runtime `rust`, served from `api/handler.rs`
+- `frontend` — the Vite app
 
-   ```bash
-   VITE_API_BASE_URL=https://your-api-host.example.com
-   ```
+Public routing lives only at the top level: `/api/(.*)` goes to `backend`,
+everything else to `frontend`. Vercel forwards the original path, so the API
+receives `/api/...` and serves it unchanged — the frontend needs no
+`VITE_API_BASE_URL` in this setup, since it calls the same domain.
 
-   Leave it empty when the API serves the built frontend from the same origin.
+There are **no service bindings**. Bindings inject a service's internal URL into
+another service's *server-side* code; here the frontend is a static browser app
+and the browser calls the public `/api` path directly, so a binding would have
+nothing to bind.
 
-`.vercelignore` keeps build output out of the upload, so importing does not ship
-the Rust `target` directory.
+`api/handler.rs` reuses the same router as `main.rs`; only the process entry
+differs. `main.rs` binds a TCP listener for a normal host, `api/handler.rs` goes
+through Vercel's function bridge.
 
-The API itself is a Rust server that needs PostgreSQL and a persistent volume for
-attachment bytes, so it belongs on a normal host (a VPS, Fly.io, Railway), not on
-Vercel's serverless runtime. When the two run on different sites, cookies have to
-cross origins. Configure the API for that:
+**Environment variables for the backend service:**
 
 ```bash
+DATABASE_URL=postgres://...            # Vercel Postgres or any provider
+STORAGE_ROOT=/tmp                     # the only writable path in a function
+COOKIE_SAME_SITE=Lax                  # same domain, so Lax is correct
 ALLOWED_ORIGINS=https://your-app.vercel.app
-COOKIE_SAME_SITE=None
-COOKIE_SECURE=auto     # auto means: Secure exactly when SameSite=None
 ```
 
-`SameSite=None` is only accepted by browsers over HTTPS, so the API must be
-served over TLS in this setup. Add your custom domain to `ALLOWED_ORIGINS` when
-you have one.
+**Known limits of this deployment.** Vercel functions have a read-only
+filesystem with scratch space in `/tmp` (500 MB, ephemeral), so uploaded
+attachment bytes do not survive an instance recycle. Request bodies are capped
+well below what `MAX_ARCHIVE_BYTES` (64 MB) allows, so lower that setting for
+imports if the deployment rejects large files. Migrations still have to be
+applied out of band with `cargo run --bin migrate`; a function never changes the
+schema on startup. The Rust runtime is in public beta.
+
+For a diary that keeps attachments durably, deploying the backend to a host with
+a persistent volume and the frontend to Vercel remains the better shape — see
+the two-origin cookie settings in `backend/.env.example`.
+
+`vercel dev` runs both services together locally.
 
 ## Checks
 
